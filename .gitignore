@@ -1,0 +1,89 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+credentials.json
+service-account*.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+env/
+
+# Node / frontend dependencies and builds
+node_modules/
+frontend/node_modules/
+dist/
+build/
+frontend/dist/
+frontend/build/
+.npm/
+.pnpm-store/
+
+# Local/private documentation, notes, and old competition materials
+docs_local/
+1_paperwork/
+
+# Runtime caches and generated data
+local_cache/
+data/
+benchmark/
+output/
+tmp/
+temp/
+/test/
+/tools/
+.tmp*/
+.tmp-*/
+*.jsonl
+*.log
+*.sqlite
+*.sqlite3
+*.db
+
+# Archives and large packaged artifacts
+*.zip
+*.rar
+*.7z
+*.tar
+*.tar.gz
+*.tgz
+*.pdf
+*.docx
+*.pptx
+*.xlsx
+*.xls
+*.csv
+
+# Editor, IDE, and local workspace metadata
+.obsidian/
+.vscode/
+.idea/
+.upload/
+.uploads/
+.DS_Store
+Thumbs.db
+
+# Playwright / browser automation artifacts
+playwright-report/
+test-results/
+.tmp-playwright-runner/
+.tmp_extract_dispatch_test/
+
+# Project-specific sensitive Supabase notes must never be committed
+docs_local/数据库规划/Supabase配置信息.md
+docs_local/工作流搭建/Supabase配置信息 1.md
