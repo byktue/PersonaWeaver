@@ -2,7 +2,7 @@
 
 CHARPICK 是一个面向长篇小说、剧本杀文本和角色素材的结构化提取系统。当前后端以 FastAPI 为入口，支持章节切分、角色/剧情/物品/世界观抽取、摘要生成、角色卡生成，以及 RAG 向量检索链路。
 
-当前主流程已不再要求本地 Ollama。为了适配 vivo 竞赛阶段的开发与演示，项目默认先通过校园远程 API 调用模型；Ollama 仅作为旧版兼容或本地兜底路径保留。
+当前主流程已不再要求本地 Ollama。为了适配 vivo 竞赛阶段的开发与演示，项目默认优先通过 vivo AIGC API 调用模型；校园远程 API 保留为 fallback；Ollama 仅作为旧版兼容或本地兜底路径保留。
 
 ## 当前推荐运行方式
 
@@ -16,9 +16,15 @@ CHARPICK 是一个面向长篇小说、剧本杀文本和角色素材的结构�
 copy .env.example .env
 ```
 
-当前校园 API 的关键配置如下：
+当前 vivo AIGC 与校园 API 的关键配置如下：
 
 ```env
+LLM_PROVIDER=vivo
+LLM_FALLBACK_PROVIDERS=remote_api
+VIVO_AIGC_APP_ID=<你的vivo AppID>
+VIVO_AIGC_BASE_URL=https://api-ai.vivo.com.cn/v1/chat/completions
+VIVO_AIGC_API_KEY=<你的vivo AppKey>
+VIVO_AIGC_MODEL=Volc-DeepSeek-V3.2
 ECNU_API_BASE_URL=https://chat.ecnu.edu.cn/open/api/v1/chat/completions
 ECNU_API_KEY=<你的校园API密钥>
 ECNU_MODEL_NAME=ecnu-max
@@ -28,24 +34,9 @@ ECNU_MODEL_NAME=ecnu-max
 
 ### 2. 确认后端模型配置
 
-`backend/config.json` 当前默认配置为：
+`backend/config.json` 当前默认配置为 `provider=vivo`。vivo provider 使用 OpenAI-compatible Chat Completions 协议，并自动在请求参数中附带 `request_id`。校园 API 保留在 `remote_api` 配置中，可通过请求参数或配置切换。
 
-```json
-{
-  "llm": {
-    "provider": "remote_api",
-    "remote_api": {
-      "base_url_env": "ECNU_API_BASE_URL",
-      "api_key_env": "ECNU_API_KEY",
-      "model_name_env": "ECNU_MODEL_NAME",
-      "base_url": "https://chat.ecnu.edu.cn/open/api/v1/chat/completions",
-      "model_name": "ecnu-max"
-    }
-  }
-}
-```
-
-也就是说，实际运行时优先读取 `.env` 里的校园 API 配置；如果 `.env` 没有对应值，才使用 `config.json` 中的默认占位配置。
+也就是说，实际运行时优先读取 `.env` 里的 vivo AIGC 配置；如果你手动指定 `provider=remote_api` 或 vivo 额度不足需要兜底，再使用校园 API。
 
 ### 3. Conda 环境配置
 
@@ -105,51 +96,53 @@ POST /api/v1/rag/index-text
 POST /api/v1/rag/query
 ```
 
-`/chat` 可用于最小化验证校园 API 是否连通。
+`/chat` 可用于最小化验证 vivo AIGC 或校园 API 是否连通。
 
-## 校园 API 连通验证
+## vivo AIGC / 校园 API 连通验证
 
-启动后端后，运行：
+启动后端后，默认走 vivo AIGC：
 
 ```bash
 curl -s -X POST "http://127.0.0.1:8000/chat" \
   -H "Content-Type: application/json" \
-  -d "{\"message\":\"请简短自我介绍\",\"model\":\"ecnu-max\"}"
+  -d "{\"message\":\"请简短自我介绍\",\"provider\":\"vivo\",\"model\":\"Volc-DeepSeek-V3.2\"}"
 ```
 
-如果 `.env` 中已经配置 `ECNU_API_KEY`，不需要在请求头里重复传 key。后端会从 `.env` 读取。
+如果要切换到校园 API：
+
+```bash
+curl -s -X POST "http://127.0.0.1:8000/chat" \
+  -H "Content-Type: application/json" \
+  -d "{\"message\":\"请简短自我介绍\",\"provider\":\"remote_api\",\"model\":\"ecnu-max\"}"
+```
+
+如果 `.env` 中已经配置 `VIVO_AIGC_API_KEY` 或 `ECNU_API_KEY`，不需要在请求头里重复传 key。后端会从 `.env` 读取。
 
 也可以临时通过请求头覆盖 key：
 
 ```bash
 curl -s -X POST "http://127.0.0.1:8000/chat" \
   -H "Content-Type: application/json" \
-  -H "x-api-key: <你的校园API密钥>" \
-  -d "{\"message\":\"请简短自我介绍\",\"model\":\"ecnu-max\"}"
+  -H "x-api-key: <你的vivo或校园API密钥>" \
+  -d "{\"message\":\"请简短自我介绍\",\"provider\":\"vivo\",\"model\":\"Volc-DeepSeek-V3.2\"}"
 ```
 
-返回 JSON 中包含 `response` 字段，说明后端已经成功通过校园 API 获得模型输出。
+返回 JSON 中包含 `response` 字段，说明后端已经成功获得模型输出。
 
 ## vivo 竞赛阶段的配置原则
 
-当前 README 按“先用校园 API 跑通主链路”的方式整理。这样做更稳妥：
+当前 README 按“vivo 优先、校园 API 兜底”的方式整理：
 
-- 校园 API 已在代码中通过 `remote_api` 路径接入；
-- 根目录 `.env` 可以集中保存本地密钥，不污染 GitHub；
-- `backend/config.json` 不需要写真实 key；
-- 后续正式切换 vivo AIGC API 时，只需要新增或调整 provider 适配层，并把 `VIVO_AIGC_BASE_URL`、`VIVO_AIGC_API_KEY`、`VIVO_AIGC_MODEL` 放进 `.env`。
+- vivo AIGC 已通过 `vivo` provider 接入；
+- 校园 API 继续通过 `remote_api` 路径保留；
+- 根目录 `.env` 集中保存本地密钥，不污染 GitHub；
+- `backend/config.json` 只保存环境变量名和占位默认值，不写真实 key。
 
-`.env` 中可以先预留 vivo 配置：
-
-```env
-VIVO_AIGC_BASE_URL=<你的vivo AIGC接口地址>
-VIVO_AIGC_API_KEY=<你的vivo AIGC密钥>
-VIVO_AIGC_MODEL=<你的vivo模型名>
-```
-
-在 vivo provider 未完全接入前，不建议把 README 主流程写成本地 Ollama 或 vivo 直连；当前最可靠的主流程是 `remote_api + ECNU_API_*`。
+如果 vivo 返回限流、今日额度用尽或权限错误，可以临时把请求中的 `provider` 改为 `remote_api`，或把 `backend/config.json` 的默认 provider 改回 `remote_api`。
 
 ## RAG 与 embedding 配置
+
+切分粒度和调用成本的公式化说明见 `docs/chunking-strategy-formulas.md`。当前建议是：本地细切分，模型调用按 5 到 10 章合并，交互阶段按 RAG 结果拼接为一次请求。
 
 默认 RAG embedding 使用 `hash` provider，只用于本地链路验证和数据库写入验证：
 
@@ -195,7 +188,7 @@ examples/                         示例输入与请求体
 
 ### README 里还需要 Ollama 吗
 
-不需要放在主流程里。Ollama 是早期本地 LLM 服务方案，代码中仍有 legacy 兼容逻辑，但现在默认 provider 是 `remote_api`，主流程应以校园 API 为准。
+不需要放在主流程里。Ollama 是早期本地 LLM 服务方案，代码中仍有 legacy 兼容逻辑，但现在默认 provider 是 `vivo`，校园 API 通过 `remote_api` 作为兜底。
 
 ### `.env` 放根目录合适吗
 
@@ -205,9 +198,17 @@ examples/                         示例输入与请求体
 
 `.env.example` 只放占位符和配置说明，可以提交 GitHub；`.env` 放真实密钥，只保存在本地。
 
-### 校园 API 不通怎么办
+### vivo 或校园 API 不通怎么办
 
-先检查三项：
+vivo 优先检查：
+
+```env
+VIVO_AIGC_BASE_URL=https://api-ai.vivo.com.cn/v1/chat/completions
+VIVO_AIGC_API_KEY=<你的vivo AppKey>
+VIVO_AIGC_MODEL=Volc-DeepSeek-V3.2
+```
+
+校园 API 兜底检查：
 
 ```env
 ECNU_API_BASE_URL=https://chat.ecnu.edu.cn/open/api/v1/chat/completions

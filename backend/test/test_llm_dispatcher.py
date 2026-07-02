@@ -4,6 +4,40 @@ from pathlib import Path
 from backend import llm_dispatcher as dispatcher
 
 
+def test_resolve_llm_config_supports_vivo_provider(monkeypatch):
+    config = {
+        "llm": {
+            "provider": "vivo",
+            "temperature": 0.5,
+            "timeout_seconds": 60,
+            "vivo": {
+                "base_url_env": "VIVO_AIGC_BASE_URL",
+                "api_key_env": "VIVO_AIGC_API_KEY",
+                "app_id_env": "VIVO_AIGC_APP_ID",
+                "model_name_env": "VIVO_AIGC_MODEL",
+                "base_url": "https://api-ai.vivo.com.cn/v1/chat/completions",
+                "model_name": "Volc-DeepSeek-V3.2",
+                "temperature": 0.1,
+                "timeout_seconds": 300,
+                "fallback_providers": ["remote_api"],
+            },
+        }
+    }
+    monkeypatch.setenv("VIVO_AIGC_BASE_URL", "https://api-ai.vivo.com.cn/v1/chat/completions")
+    monkeypatch.setenv("VIVO_AIGC_API_KEY", "vivo-token")
+    monkeypatch.setenv("VIVO_AIGC_APP_ID", "2026945506")
+    monkeypatch.setenv("VIVO_AIGC_MODEL", "Volc-DeepSeek-V3.2")
+
+    llm_cfg = dispatcher._resolve_llm_config(config)
+
+    assert llm_cfg["provider"] == "vivo"
+    assert llm_cfg["base_url"] == "https://api-ai.vivo.com.cn/v1/chat/completions"
+    assert llm_cfg["api_key"] == "vivo-token"
+    assert llm_cfg["app_id"] == "2026945506"
+    assert llm_cfg["model"] == "Volc-DeepSeek-V3.2"
+    assert llm_cfg["fallback_providers"] == ["remote_api"]
+
+
 def test_dispatch_summary_prompts_writes_json_and_md(monkeypatch, tmp_path):
     chapter_dir = tmp_path / "book_cache" / "extraction_json"
     chapter_dir.mkdir(parents=True, exist_ok=True)
@@ -65,7 +99,6 @@ def test_dispatch_summary_prompts_writes_json_and_md(monkeypatch, tmp_path):
     assert any("chapter_info" in call["text_or_documents"] for call in calls)
     assert any("chapter_title" in call["text_or_documents"] for call in calls)
     assert Path(result["summary_root_dir"]).exists()
-    # New structure: summary/{dimension}/{dimension}.{json,md}
     characters_index_path = chapter_dir.parent / "summary" / "characters" / "all_characters.json"
     character_detail_path = chapter_dir.parent / "summary" / "characters" / "character_json" / "石野.json"
     items_path = chapter_dir.parent / "summary" / "items" / "items.json"

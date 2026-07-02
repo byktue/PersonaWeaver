@@ -288,6 +288,51 @@ def _chat_with_remote_api(
     return content, int(tokens) if isinstance(tokens, int) else None
 
 
+def _chat_with_vivo_api(
+    *,
+    base_url: str,
+    api_key: str,
+    model: str,
+    messages: list[dict[str, str]],
+    temperature: float,
+    top_p: float,
+    max_tokens: int,
+    timeout_seconds: int,
+) -> tuple[str, int | None]:
+    headers = {
+        "Content-Type": "application/json; charset=utf-8",
+        "Authorization": f"Bearer {api_key}",
+    }
+    payload = {
+        "model": model,
+        "messages": messages,
+        "temperature": temperature,
+        "top_p": top_p,
+        "max_tokens": max_tokens,
+        "stream": False,
+        "thinking": {"type": "disabled"},
+    }
+
+    resp = requests.post(
+        _normalize_chat_base_url(base_url),
+        headers=headers,
+        params={"request_id": str(uuid.uuid4())},
+        json=payload,
+        timeout=timeout_seconds,
+    )
+    resp.raise_for_status()
+    result_json = resp.json()
+    if isinstance(result_json, dict):
+        code = result_json.get("code")
+        msg = result_json.get("msg") or result_json.get("message")
+        if code in {1001, 1007, 2003, 30001} or str(msg).strip() in {"429", "inner error"}:
+            raise RuntimeError(f"vivo AIGC error {code}: {msg or result_json}")
+    content = _extract_text_from_llm_response(result_json)
+    usage = result_json.get("usage") if isinstance(result_json, dict) else None
+    tokens = usage.get("total_tokens") if isinstance(usage, dict) else None
+    return content, int(tokens) if isinstance(tokens, int) else None
+
+
 def _chat_with_ollama(
     *,
     base_url: str,
@@ -393,6 +438,7 @@ class ChatRequest(BaseModel):
     message: str | None = None
     history: list[dict[str, Any]] = Field(default_factory=list)
     system_prompt: str | None = None
+    provider: str | None = Field(default=None, description="可选：vivo / remote_api / ecnu / glm / ollama")
     model: str | None = None
     temperature: float = 0.7
     top_p: float = 0.9
@@ -1210,7 +1256,7 @@ def get_character_detail(
 def chat(request: ChatRequest, x_api_key: str | None = Header(default=None)) -> dict[str, Any]:
     config = _load_backend_config()
     llm_cfg = config.get("llm", {})
-    provider = str(llm_cfg.get("provider") or "ollama").strip().lower()
+    provider = str(request.provider or llm_cfg.get("provider") or "ollama").strip().lower()
 
     messages: list[dict[str, str]] = []
     if request.system_prompt and request.system_prompt.strip():
@@ -1233,7 +1279,28 @@ def chat(request: ChatRequest, x_api_key: str | None = Header(default=None)) -> 
     timeout_seconds = int(llm_cfg.get("timeout_seconds", 120))
     model = str(request.model or llm_cfg.get("model") or "qwen2.5:0.5b")
 
-    if provider in {"remote_api", "glm", "bigmodel"}:
+    if provider in {"vivo", "vivo_aigc"}:
+        vivo_cfg = llm_cfg.get("vivo") if isinstance(llm_cfg.get("vivo"), dict) else {}
+        base_url = _env_or_config(vivo_cfg, "base_url_env", "base_url", "https://api-ai.vivo.com.cn/v1/chat/completions").strip()
+        api_key = str(x_api_key or _env_or_config(vivo_cfg, "api_key_env", "api_key", llm_cfg.get("api_key", ""))).strip()
+        model = str(request.model or _env_or_config(vivo_cfg, "model_name_env", "model_name", vivo_cfg.get("model", "Volc-DeepSeek-V3.2")))
+        timeout_seconds = int(vivo_cfg.get("timeout_seconds", timeout_seconds))
+        if not base_url or not api_key:
+            raise HTTPException(status_code=500, detail="vivo 配置不完整（base_url/api_key）")
+        try:
+            content, tokens = _chat_with_vivo_api(
+                base_url=base_url,
+                api_key=api_key,
+                model=model,
+                messages=messages,
+                temperature=float(request.temperature),
+                top_p=float(request.top_p),
+                max_tokens=int(request.max_tokens),
+                timeout_seconds=timeout_seconds,
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"vivo AIGC 调用失败: {exc}") from exc
+    elif provider in {"remote_api", "ecnu", "glm", "bigmodel"}:
         if provider == "glm" or provider == "bigmodel":
             glm_cfg = llm_cfg.get("glm") if isinstance(llm_cfg.get("glm"), dict) else {}
             base_url = _env_or_config(glm_cfg, "base_url_env", "base_url", "https://open.bigmodel.cn/api/paas/v4").strip()

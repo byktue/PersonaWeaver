@@ -5,7 +5,7 @@
     "chapter_content_text_dir": "local_cache/chapter_content_text"
   },
   "llm": {
-    "provider": "remote_api",
+    "provider": "vivo",
     "base_url": "http://localhost:11434",
     "model": "qwen2.5:0.5b",
     "temperature": 0.1,
@@ -24,6 +24,17 @@
       "model_name": "ecnu-max",
       "temperature": 0.1,
       "timeout_seconds": 300
+    },
+    "vivo": {
+      "base_url_env": "VIVO_AIGC_BASE_URL",
+      "api_key_env": "VIVO_AIGC_API_KEY",
+      "app_id_env": "VIVO_AIGC_APP_ID",
+      "model_name_env": "VIVO_AIGC_MODEL",
+      "base_url": "https://api-ai.vivo.com.cn/v1/chat/completions",
+      "model_name": "Volc-DeepSeek-V3.2",
+      "temperature": 0.1,
+      "timeout_seconds": 300,
+      "fallback_providers": ["remote_api"]
     },
     "glm": {
       "base_url": "https://open.bigmodel.cn/api/paas/v4",

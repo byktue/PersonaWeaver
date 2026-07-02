@@ -93,9 +93,20 @@ def _resolve_llm_config(
 
     local_cfg = llm_cfg.get("ollama", {}) if isinstance(llm_cfg.get("ollama"), dict) else {}
     remote_cfg = llm_cfg.get("remote_api", {}) if isinstance(llm_cfg.get("remote_api"), dict) else {}
+    vivo_cfg = llm_cfg.get("vivo", {}) if isinstance(llm_cfg.get("vivo"), dict) else {}
     glm_cfg = llm_cfg.get("glm", {}) if isinstance(llm_cfg.get("glm"), dict) else {}
 
-    if resolved_provider == "remote_api":
+    if resolved_provider in {"vivo", "vivo_aigc"}:
+        merged_cfg = {
+            "base_url": _env_or_config(vivo_cfg, "base_url_env", "base_url", "https://api-ai.vivo.com.cn/v1/chat/completions"),
+            "api_key": _env_or_config(vivo_cfg, "api_key_env", "api_key", llm_cfg.get("api_key", "")),
+            "app_id": _env_or_config(vivo_cfg, "app_id_env", "app_id", ""),
+            "model": _env_or_config(vivo_cfg, "model_name_env", "model_name", vivo_cfg.get("model", llm_cfg.get("model_name", llm_cfg.get("model", "Volc-DeepSeek-V3.2")))),
+            "temperature": vivo_cfg.get("temperature", llm_cfg.get("temperature", 0.1)),
+            "timeout_seconds": vivo_cfg.get("timeout_seconds", llm_cfg.get("timeout_seconds", 300)),
+            "fallback_providers": vivo_cfg.get("fallback_providers", []),
+        }
+    elif resolved_provider in {"remote_api", "ecnu"}:
         merged_cfg = {
             "base_url": _env_or_config(remote_cfg, "base_url_env", "base_url", llm_cfg.get("base_url", "https://chat.ecnu.edu.cn/open/api/v1/chat/completions")),
             "api_key": _env_or_config(remote_cfg, "api_key_env", "api_key", llm_cfg.get("api_key", "")),
