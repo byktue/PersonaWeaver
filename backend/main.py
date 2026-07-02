@@ -1206,6 +1206,7 @@ def get_character_detail(
     }
 
 
+@app.post("/chat")
 def chat(request: ChatRequest, x_api_key: str | None = Header(default=None)) -> dict[str, Any]:
     config = _load_backend_config()
     llm_cfg = config.get("llm", {})

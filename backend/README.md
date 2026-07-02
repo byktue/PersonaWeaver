@@ -14,7 +14,7 @@
   - `chapter_chunker.py`: 章节/逻辑分块
   - `pipeline.py`: 统一预处理流水线（并写入本地缓存）
 - `llm_chapter_extraction/`: L1 -> L2 逐章结构化提取
-  - `extractor_client.py`: 调用 Ollama 并解析 JSON
+  - `extractor_client.py`: 通过统一 LLM client 调用当前 provider，并解析 JSON
   - `chapter_structured_extractor.py`: 按维度逐章提取并合并结果
 - `workflow_runner.py`: 串联输入解析/清洗/分块/逐章提取的一体化脚本
 - `test/`: 测试代码与测试说明（当前先写不执行）
@@ -45,11 +45,19 @@
 
 ### 0) 一次性准备
 
-先确保依赖、Ollama 和数据库配置可用：
+先确保依赖和本地环境变量可用。当前推荐把校园 API、数据库、OSS 等私密配置放在项目根目录 `.env`，后端会自动读取：
 
 ```powershell
 pip install -r requirements.txt
-docker start ollama
+copy .env.example .env
+```
+
+当前主模型路径默认走校园远程 API，请至少在 `.env` 中配置：
+
+```env
+ECNU_API_BASE_URL=https://chat.ecnu.edu.cn/open/api/v1/chat/completions
+ECNU_API_KEY=<你的校园API密钥>
+ECNU_MODEL_NAME=ecnu-max
 ```
 
 如果要走远程入库，请确认 `.env` 中至少存在 `SUPABASE_DB_URL`，或者可用的 `DATABASE_URL` / `SUPABASE_POOLER_DB_URL`。
