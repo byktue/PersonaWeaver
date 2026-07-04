@@ -22,7 +22,10 @@ source_preprocess/
 ├── chapter_chunker.py   # 章节切分逻辑
 └── parsers/             # 输入源适配层
     ├── router.py        # 根据 source_type 选择具体 parser
-    └── txt_parser.py    # txt/md 文本解析与编码标准化
+    ├── txt_parser.py    # txt/md 文本解析与编码标准化
+    ├── pdf_parser.py    # PDF 文本提取
+    ├── docx_parser.py   # DOCX 段落文本提取
+    └── epub_parser.py   # EPUB spine 章节文本提取
 ```
 
 ## parsers 的边界
@@ -62,14 +65,15 @@ source_preprocess/
 ```text
 txt
 md
+pdf
+docx
+epub
 ```
 
 当前 router 中已预留但尚未实现：
 
 ```text
-pdf
 doc
-epub
 jpg / jpeg / png / webp / heic / heif
 url / html
 ```
