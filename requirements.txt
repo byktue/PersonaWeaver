@@ -1,0 +1,7 @@
+# submission_llm_core 运行依赖
+# requests：发起 HTTP 调用（LLM API）
+# chardet：自动识别非 UTF-8 原文编码（GB18030 等）
+# pypdf：PDF 输入源解析（docx/epub 解析仅用标准库，无需额外依赖）
+requests>=2.31.0
+chardet>=5.0.0
+pypdf>=4.0.0

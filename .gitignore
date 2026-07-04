@@ -1,0 +1,13 @@
+# 真实密钥文件绝不提交，仅保留模板
+.env
+.env.*
+!.env.example
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+
+# 运行时生成的本地缓存与产物
+local_cache/
+benchmark/
+output/
