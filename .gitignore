@@ -44,6 +44,8 @@ submission_llm_core/
 # 打包产物：exe 二进制体积大且随构建变化，程序包不进公开仓库（本地保留/单独交付）
 packaging/**/dist/
 packaging/**/build/
+packaging/**/release/
+packaging/**/node_modules/
 packaging/**/*.env
 !packaging/**/.env.example
 personaweaver-backend/
