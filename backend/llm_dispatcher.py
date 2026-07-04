@@ -1266,6 +1266,7 @@ def _build_cli() -> argparse.ArgumentParser:
     chapter_parser.add_argument("--filter-noise", action="store_true")
     chapter_parser.add_argument("--book-id")
     chapter_parser.add_argument("--book-title")
+    chapter_parser.add_argument("--provider")
     chapter_parser.add_argument("--model")
     chapter_parser.add_argument("--base-url")
     chapter_parser.add_argument("--temperature", type=float)
@@ -1276,6 +1277,7 @@ def _build_cli() -> argparse.ArgumentParser:
     summary_parser.add_argument("--chapter-json-dir", required=True)
     summary_parser.add_argument("--source-file-id", required=True)
     summary_parser.add_argument("--book-title")
+    summary_parser.add_argument("--provider")
     summary_parser.add_argument("--model")
     summary_parser.add_argument("--base-url")
     summary_parser.add_argument("--temperature", type=float)
@@ -1287,6 +1289,7 @@ def _build_cli() -> argparse.ArgumentParser:
     card_parser.add_argument("--source-file-id", required=True)
     card_parser.add_argument("--character-name", required=True)
     card_parser.add_argument("--book-title")
+    card_parser.add_argument("--provider")
     card_parser.add_argument("--model")
     card_parser.add_argument("--base-url")
     card_parser.add_argument("--temperature", type=float)
@@ -1311,6 +1314,7 @@ def main() -> None:
             book_id=args.book_id,
             book_title=args.book_title,
             enabled_dimensions=args.dimensions,
+            provider=args.provider,
             model=args.model,
             base_url=args.base_url,
             temperature=args.temperature,
@@ -1322,6 +1326,7 @@ def main() -> None:
             source_file_id=args.source_file_id,
             book_title=args.book_title,
             enabled_dimensions=args.dimensions,
+            provider=args.provider,
             model=args.model,
             base_url=args.base_url,
             temperature=args.temperature,
@@ -1334,6 +1339,7 @@ def main() -> None:
             character_name=args.character_name,
             book_title=args.book_title,
             enabled_dimensions=args.dimensions,
+            provider=args.provider,
             model=args.model,
             base_url=args.base_url,
             temperature=args.temperature,
