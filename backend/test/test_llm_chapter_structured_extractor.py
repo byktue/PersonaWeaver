@@ -33,6 +33,8 @@ def test_extract_chapter_structured_merges_dimensions_and_strips_empty_fields(mo
             return {"items": [{"name": "青冥镜", "description": "", "owner": "石野"}]}
         if "本章地点" in prompt:
             return {"worldview": ["山神庙", ""]}
+        if "场景描述" in prompt:
+            return {"scene_name": "山神庙", "atmosphere": "", "sensory": ["昏暗", ""]}
         return {}
 
     monkeypatch.setattr(extractor, "call_ollama_json", fake_call_ollama_json)
@@ -53,7 +55,9 @@ def test_extract_chapter_structured_merges_dimensions_and_strips_empty_fields(mo
     assert result["characters"]["characters"][0]["behavior"] == ["插科打诨"]
     assert result["items"]["items"][0]["name"] == "青冥镜"
     assert result["world"]["worldview"] == ["山神庙"]
-    assert len(calls) == 5
+    assert result["scene_description"]["scene_name"] == "山神庙"
+    assert result["scene_description"]["sensory"] == ["昏暗"]
+    assert len(calls) == 6
 
 
 def test_extract_chapter_structured_records_llm_errors(monkeypatch):
