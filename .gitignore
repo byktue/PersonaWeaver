@@ -41,6 +41,14 @@ docs_local/
 # 赛事单独提交物：清单第6项「核心功能调用大模型的代码包」，单独交付赛事，不进公开仓库
 submission_llm_core/
 
+# 打包产物：exe 二进制体积大且随构建变化，程序包不进公开仓库（本地保留/单独交付）
+packaging/**/dist/
+packaging/**/build/
+packaging/**/*.env
+!packaging/**/.env.example
+personaweaver-backend/
+personaweaver-frontend/
+
 # Runtime caches and generated data
 local_cache/
 data/
