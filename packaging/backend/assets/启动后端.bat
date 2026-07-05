@@ -1,15 +1,20 @@
 @echo off
-chcp 65001 >nul
-title PersonaWeaver 后端服务
+cd /d "%~dp0"
+title PersonaWeaver Backend
 echo ============================================================
-echo  PersonaWeaver 后端服务启动中...
+echo   PersonaWeaver Backend Service
 echo ============================================================
-if not exist ".env" (
-    echo [警告] 未找到 .env 配置文件！
-    echo 请先把 .env.example 复制为 .env 并填入你的 API key。
-    echo.
-    pause
-    exit /b 1
-)
+if not exist ".env" goto noenv
+echo Health check: http://127.0.0.1:8000/health
+echo Press Ctrl+C or close window to stop.
+echo.
 personaweaver-backend.exe --port 8000
 pause
+exit /b 0
+:noenv
+echo [WARNING] .env not found!
+echo Please copy .env.example to .env and fill in your API keys.
+echo (See the Chinese guide: shiyongshuoming.txt)
+echo.
+pause
+exit /b 1
