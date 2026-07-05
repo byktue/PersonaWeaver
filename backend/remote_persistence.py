@@ -268,15 +268,17 @@ def _upsert_user_and_book(
     book_file_url: str,
     err_message: str | None = None,
 ) -> None:
+    # 用户由登录系统（Supabase auth）管理，提取流程不应改动其 username，
+    # 否则会撞 users_username_key 唯一约束（把当前用户的 username 更新成别人已占用的值）。
+    # 已存在（user_id 或 username 任一冲突）则什么都不做，仅新用户才插入占位行。
     cur.execute(
         """
         INSERT INTO public.users (user_id, username, password_hash)
-        VALUES (%s, %s, %s)
-        ON CONFLICT (user_id) DO UPDATE
-        SET username = EXCLUDED.username,
-            updated_at = now()
+        SELECT %s, %s, %s
+        WHERE NOT EXISTS (SELECT 1 FROM public.users WHERE user_id = %s)
+        ON CONFLICT DO NOTHING
         """,
-        (user_id, username, "local_placeholder_hash"),
+        (user_id, username, "local_placeholder_hash", user_id),
     )
 
     cur.execute(
