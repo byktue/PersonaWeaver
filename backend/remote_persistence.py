@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote, urlencode, urlparse
@@ -73,7 +74,7 @@ def _build_supabase_pooler_url(db_url: str) -> str | None:
     return f"postgresql://{netloc}/{db_name}?{query}"
 
 
-def _connect_with_fallback(db_url: str):
+def _raw_connect(db_url: str):
     try:
         return psycopg2.connect(db_url)
     except OperationalError as exc:
@@ -86,6 +87,31 @@ def _connect_with_fallback(db_url: str):
             raise
 
         return psycopg2.connect(pooler_url)
+
+
+@contextmanager
+def _connect_with_fallback(db_url: str):
+    """连接上下文管理器：提交/回滚事务后**务必关闭连接**。
+
+    Supabase transaction 模式 pooler(6543) 连接数很紧，psycopg2 原生
+    `with conn` 只提交不关闭，频繁调用会耗尽 pooler 连接导致卡死。
+    这里统一在退出时 close，修复所有调用点的连接泄漏。
+    """
+    conn = _raw_connect(db_url)
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        raise
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 def _build_oss_client() -> tuple[Any, str]:

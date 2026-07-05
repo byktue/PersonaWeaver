@@ -631,8 +631,8 @@ def _run_dispatch_pipeline_task(
             message=str(event.get("message", "")),
             detail=event,
         )
-        # 进度每增长 >=5% 才写一次 books 表，减少 DB 压力；不覆盖最终 done。
-        if pct - _last_written["pct"] >= 5 and pct < 100:
+        # 进度每增长 >=20% 才写一次 books 表，减少 pooler 连接开销；不覆盖最终 done。
+        if pct - _last_written["pct"] >= 20 and pct < 100:
             _last_written["pct"] = pct
             try:
                 from backend.remote_persistence import mark_book_status
