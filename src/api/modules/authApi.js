@@ -10,7 +10,7 @@ import {
   isDisabledStatus,
   isOpenAIChatCompletionsUrl,
   normalizeOptionalText,
-  proxyEcnuModelsUrl,
+  proxyEcnuChatCompletionsUrl,
   resolveCurrentUserId,
   sha256,
   stripTrailingSlash,
@@ -395,16 +395,39 @@ export function createAuthApi() {
         if (!settings.api_key) {
           throw new Error("请先填写 API Key");
         }
+        if (!String(settings.model || "").trim()) {
+          throw new Error("请先选择模型（如 Volc-DeepSeek-V3.2）");
+        }
 
-        const modelsUrl = proxyEcnuModelsUrl(settings.backend_url);
+        // vivo 等 OpenAI 兼容接口没有 /models 端点，改为向 /chat/completions
+        // 发一个最小请求探测可达性：只要拿到任意 HTTP 响应即视为连通
+        // （鉴权/额度类错误也说明地址正确、服务可达）。
+        const chatUrl = proxyEcnuChatCompletionsUrl(settings.backend_url);
         try {
-          const res = await axios.get(modelsUrl, {
-            headers: buildOpenAIHeaders(settings),
-            timeout: 12000,
-          });
+          const res = await axios.post(
+            chatUrl,
+            {
+              model: settings.model,
+              messages: [{ role: "user", content: "ping" }],
+              max_tokens: 1,
+              stream: false,
+            },
+            {
+              headers: {
+                ...buildOpenAIHeaders(settings),
+                "Content-Type": "application/json; charset=utf-8",
+              },
+              params: { request_id: createId("req") },
+              timeout: 15000,
+            },
+          );
           return res.status >= 200 && res.status < 300;
         } catch (error) {
-          throw new Error(toHealthErrorMessage(error, modelsUrl));
+          // 有 HTTP 响应（4xx/5xx）说明地址可达，只是鉴权/参数问题 → 判为连通
+          if (error?.response?.status) {
+            return true;
+          }
+          throw new Error(toHealthErrorMessage(error, chatUrl));
         }
       }
 

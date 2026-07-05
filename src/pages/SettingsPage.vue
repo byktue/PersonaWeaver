@@ -56,6 +56,26 @@
               placeholder="例如: https://api.example.com/v1/chat/completions"
             />
           </el-form-item>
+          <el-form-item label="模型">
+            <el-select
+              v-model="form.model"
+              filterable
+              allow-create
+              default-first-option
+              placeholder="选择或输入模型名（vivo 必填）"
+              style="width: 100%"
+            >
+              <el-option
+                v-for="m in vivoModelOptions"
+                :key="m"
+                :label="m"
+                :value="m"
+              />
+            </el-select>
+            <div class="prompt-tips" style="margin-top:6px">
+              <span>调用 vivo AIGC 需选择模型，例如 Volc-DeepSeek-V3.2。</span>
+            </div>
+          </el-form-item>
           <el-form-item label="API Key">
             <el-input
               v-model="form.api_key"
@@ -200,6 +220,15 @@ const accountForm = reactive({
 const healthy = ref(null);
 const checkingHealth = ref(false);
 const rolePromptCount = computed(() => form.custom_role_prompt?.trim().length ?? 0);
+
+// vivo AIGC 支持的模型（来自 vivo 官方接口文档）
+const vivoModelOptions = [
+  "Volc-DeepSeek-V3.2",
+  "Doubao-Seed-2.0-pro",
+  "Doubao-Seed-2.0-lite",
+  "Doubao-Seed-2.0-mini",
+  "qwen3.5-plus",
+];
 
 watch(
   () => [form.custom_role_avatar, form.custom_role_name, form.custom_role_prompt],
