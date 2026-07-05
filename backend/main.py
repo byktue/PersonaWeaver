@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 import sys
+import threading
 import time
 import uuid
 from datetime import datetime
@@ -609,16 +610,35 @@ def _run_dispatch_pipeline_task(
         message="任务开始执行",
     )
 
+    # 把书籍状态置为解析中（前端轮询 books 表）
+    try:
+        from backend.remote_persistence import mark_book_status
+        mark_book_status(book_id=book["book_id"], status="parsing", progress=1, db_url=req.remote_db_url)
+    except Exception as exc:  # noqa: BLE001
+        _write_log(f"[dispatch:{task_id}] mark parsing failed: {exc}")
+
+    # 进度回写节流：避免每个事件都写库
+    _last_written = {"pct": -10}
+
     def on_progress(event: dict[str, Any]) -> None:
+        pct = int(event.get("percent", 1))
         _set_task_state(
             task_id,
             status="running",
-            progress=int(event.get("percent", 1)),
+            progress=pct,
             stage=str(event.get("stage", "dispatch")),
             event=str(event.get("event", "running")),
             message=str(event.get("message", "")),
             detail=event,
         )
+        # 进度每增长 >=5% 才写一次 books 表，减少 DB 压力；不覆盖最终 done。
+        if pct - _last_written["pct"] >= 5 and pct < 100:
+            _last_written["pct"] = pct
+            try:
+                from backend.remote_persistence import mark_book_status
+                mark_book_status(book_id=book["book_id"], status="parsing", progress=pct, db_url=req.remote_db_url)
+            except Exception:  # noqa: BLE001
+                pass
 
     try:
         result = run_l0_to_l2_pipeline(
@@ -703,17 +723,24 @@ def extract_dispatch(
         user_id=user_ctx["user_id"],
     )
 
-    background_tasks.add_task(
-        _run_dispatch_pipeline_task,
-        task_id=task_id,
-        req=req,
-        user_ctx=user_ctx,
-        book=book,
-        source_file_id=source_file_id,
-        source_type=source_type,
-        file_url=file_url,
-        card_character_name=card_character_name,
+    # 用原生线程而非 FastAPI BackgroundTasks 启动后台提取：
+    # PyInstaller 打包的 exe 里 Starlette BackgroundTasks 不可靠（任务不执行），
+    # threading.Thread 在 frozen 环境下能正常运行。
+    worker = threading.Thread(
+        target=_run_dispatch_pipeline_task,
+        kwargs=dict(
+            task_id=task_id,
+            req=req,
+            user_ctx=user_ctx,
+            book=book,
+            source_file_id=source_file_id,
+            source_type=source_type,
+            file_url=file_url,
+            card_character_name=card_character_name,
+        ),
+        daemon=True,
     )
+    worker.start()
 
     return {
         "task_id": task_id,

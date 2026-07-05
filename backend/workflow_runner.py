@@ -379,6 +379,7 @@ def run_l0_to_l2_pipeline(
             mark_book_status(
                 book_id=resolved_book_id,
                 status="done",
+                progress=100,
                 db_url=remote_db_url,
             )
             emit_progress(stage="远程上传", percent=96, status="running", message="书籍状态更新完成")

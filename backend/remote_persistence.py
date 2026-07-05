@@ -275,21 +275,34 @@ def mark_book_status(
     *,
     book_id: str,
     status: str,
+    progress: int | None = None,
     db_url: str | None = None,
 ) -> None:
     resolved_db_url = _resolve_db_url(db_url)
 
     with _connect_with_fallback(resolved_db_url) as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                """
-                UPDATE public.books
-                SET status = %s,
-                    updated_at = now()
-                WHERE book_id = %s
-                """,
-                (status, book_id),
-            )
+            if progress is not None:
+                cur.execute(
+                    """
+                    UPDATE public.books
+                    SET status = %s,
+                        progress = %s,
+                        updated_at = now()
+                    WHERE book_id = %s
+                    """,
+                    (status, int(progress), book_id),
+                )
+            else:
+                cur.execute(
+                    """
+                    UPDATE public.books
+                    SET status = %s,
+                        updated_at = now()
+                    WHERE book_id = %s
+                    """,
+                    (status, book_id),
+                )
 
 
 def initialize_remote_processing(
