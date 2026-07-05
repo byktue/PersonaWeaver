@@ -21,7 +21,8 @@ for _dll in ("libssl-3-x64.dll", "libcrypto-3-x64.dll", "ffi-*.dll", "libffi*.dl
 
 # 需要完整收集的第三方包（含数据文件 / 动态子模块）
 for pkg in ("supabase", "postgrest", "storage3", "supabase_auth", "supabase_functions",
-            "realtime", "gotrue", "langextract", "google", "psycopg2"):
+            "realtime", "gotrue", "langextract", "google", "psycopg2",
+            "oss2", "aliyunsdkcore", "crcmod", "Crypto", "aliyun"):
     try:
         d, b, h = collect_all(pkg)
         datas += d
@@ -29,6 +30,10 @@ for pkg in ("supabase", "postgrest", "storage3", "supabase_auth", "supabase_func
         hiddenimports += h
     except Exception:
         pass
+
+# oss2 及其依赖是 try/except 导入，PyInstaller 静态分析发现不了，需显式声明。
+hiddenimports += ["oss2", "crcmod", "aliyunsdkcore", "aliyunsdkkms",
+                  "Crypto", "Crypto.Cipher", "Crypto.Cipher.AES"]
 
 hiddenimports += collect_submodules("uvicorn")
 hiddenimports += ["backend", "backend.main", "backend.long",

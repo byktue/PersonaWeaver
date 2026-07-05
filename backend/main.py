@@ -74,6 +74,10 @@ DEFAULT_OUTPUT_FILE = OUTPUT_DIR / "charpick_v3_database.jsonl"
 _TASKS: dict[str, dict[str, Any]] = {}
 _TASKS_LOCK = Lock()
 
+# 正在提取中的 book_id 集合，防止同一本书被重复并发提取。
+_RUNNING_BOOKS: set[str] = set()
+_RUNNING_BOOKS_LOCK = Lock()
+
 
 def _now_iso() -> str:
     return datetime.now().isoformat(timespec="seconds")
@@ -693,6 +697,10 @@ def _run_dispatch_pipeline_task(
         import traceback
         print(f"[dispatch:{task_id}] 任务异常:", flush=True)
         traceback.print_exc()
+    finally:
+        # 无论成败，从"正在提取"集合移除，允许该书重新提取。
+        with _RUNNING_BOOKS_LOCK:
+            _RUNNING_BOOKS.discard(book["book_id"])
 
 
 @app.post("/api/v1/extract")
@@ -705,47 +713,59 @@ def extract_dispatch(
     user_ctx = _resolve_user_context(token)
     book = _fetch_book_for_user(user_ctx["user_id"], req.book_id)
 
-    file_url = str(req.file_url or book["book_file_url"] or "").strip()
-    if not file_url:
-        raise HTTPException(status_code=400, detail="book_file_url 为空，无法开始提取")
+    # 防重复并发：同一本书已在提取中则拒绝，避免重复点击起多个任务。
+    with _RUNNING_BOOKS_LOCK:
+        if book["book_id"] in _RUNNING_BOOKS:
+            raise HTTPException(status_code=409, detail="该书籍正在提取中，请勿重复提交")
+        _RUNNING_BOOKS.add(book["book_id"])
 
-    source_type = str(req.source_type or book["source_type"] or "txt").lower()
-    source_file_id = req.source_file_id or f"sf_{book['book_id']}_{int(time.time())}"
-    card_character_name = str(req.card_character_name or "").strip()
-    if req.run_card and not card_character_name:
-        card_character_name = _resolve_character_name_from_roles(user_ctx["user_id"], book["book_id"], req.roles)
-    if req.run_card and not card_character_name:
-        raise HTTPException(status_code=400, detail="请先从 summary 角色总表中选择角色，再提取角色卡")
+    try:
+        file_url = str(req.file_url or book["book_file_url"] or "").strip()
+        if not file_url:
+            raise HTTPException(status_code=400, detail="book_file_url 为空，无法开始提取")
 
-    task_id = f"dispatch_{uuid.uuid4().hex[:12]}"
-    _set_task_state(
-        task_id,
-        status="queued",
-        progress=0,
-        stage="queued",
-        message="任务已入队",
-        book_id=book["book_id"],
-        user_id=user_ctx["user_id"],
-    )
+        source_type = str(req.source_type or book["source_type"] or "txt").lower()
+        source_file_id = req.source_file_id or f"sf_{book['book_id']}_{int(time.time())}"
+        card_character_name = str(req.card_character_name or "").strip()
+        if req.run_card and not card_character_name:
+            card_character_name = _resolve_character_name_from_roles(user_ctx["user_id"], book["book_id"], req.roles)
+        if req.run_card and not card_character_name:
+            raise HTTPException(status_code=400, detail="请先从 summary 角色总表中选择角色，再提取角色卡")
 
-    # 用原生线程而非 FastAPI BackgroundTasks 启动后台提取：
-    # PyInstaller 打包的 exe 里 Starlette BackgroundTasks 不可靠（任务不执行），
-    # threading.Thread 在 frozen 环境下能正常运行。
-    worker = threading.Thread(
-        target=_run_dispatch_pipeline_task,
-        kwargs=dict(
-            task_id=task_id,
-            req=req,
-            user_ctx=user_ctx,
-            book=book,
-            source_file_id=source_file_id,
-            source_type=source_type,
-            file_url=file_url,
-            card_character_name=card_character_name,
-        ),
-        daemon=True,
-    )
-    worker.start()
+        task_id = f"dispatch_{uuid.uuid4().hex[:12]}"
+        _set_task_state(
+            task_id,
+            status="queued",
+            progress=0,
+            stage="queued",
+            message="任务已入队",
+            book_id=book["book_id"],
+            user_id=user_ctx["user_id"],
+        )
+
+        # 用原生线程而非 FastAPI BackgroundTasks 启动后台提取：
+        # PyInstaller 打包的 exe 里 Starlette BackgroundTasks 不可靠（任务不执行），
+        # threading.Thread 在 frozen 环境下能正常运行。
+        worker = threading.Thread(
+            target=_run_dispatch_pipeline_task,
+            kwargs=dict(
+                task_id=task_id,
+                req=req,
+                user_ctx=user_ctx,
+                book=book,
+                source_file_id=source_file_id,
+                source_type=source_type,
+                file_url=file_url,
+                card_character_name=card_character_name,
+            ),
+            daemon=True,
+        )
+        worker.start()
+    except Exception:
+        # 启动失败则释放占用，允许重试
+        with _RUNNING_BOOKS_LOCK:
+            _RUNNING_BOOKS.discard(book["book_id"])
+        raise
 
     return {
         "task_id": task_id,

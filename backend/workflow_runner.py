@@ -171,6 +171,23 @@ def run_l0_to_l2_pipeline(
             if evt == "chapter_batch_start":
                 emit_progress(stage="L2章节提取", percent=8, status="start", message=f"共 {total} 章，开始提取")
                 return
+            if evt in ("chapter_start", "chapter_dimension_done"):
+                # 章节内部平滑进度：8%~60% 区间，按 (已完成章 + 本章维度进度) / 总章 线性推进。
+                ch_idx = int(event.get("chapter_index") or 0)      # 当前第几章(从1)
+                dim_idx = int(event.get("dimension_index") or 0)    # 本章第几个维度(从1)
+                total_dim = int(event.get("total_dimensions") or 0)
+                if total > 0:
+                    chapter_frac = (dim_idx / total_dim) if total_dim else 0.0
+                    done_frac = (max(ch_idx - 1, 0) + chapter_frac) / total
+                    pct = 8 + int(done_frac * 52)
+                    title = str(event.get("chapter_title") or "")
+                    emit_progress(
+                        stage="L2章节提取",
+                        percent=pct,
+                        status="running",
+                        message=f"第 {ch_idx}/{total} 章提取中：{title}",
+                    )
+                return
             if evt == "chapter_done":
                 pct = 8 + int((completed / total) * 52) if total else 8
                 title = str(event.get("chapter_title") or "")
@@ -191,6 +208,10 @@ def run_l0_to_l2_pipeline(
             dim = str(event.get("dimension") or "")
             if evt == "summary_start":
                 emit_progress(stage="Summary汇总", percent=61, status="start", message=f"共 {total} 个维度")
+                return
+            if evt == "summary_dimension_start":
+                pct = 61 + int((max(idx - 1, 0) / total) * 12) if total else 61
+                emit_progress(stage="Summary汇总", percent=pct, status="running", message=f"汇总维度中：{dim}")
                 return
             if evt == "summary_dimension_done":
                 pct = 61 + int((idx / total) * 12) if total else 61
