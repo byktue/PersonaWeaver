@@ -13,8 +13,13 @@ from psycopg2 import OperationalError
 
 try:
     import oss2
-except Exception:  # pragma: no cover - optional dependency for OSS upload
+    _OSS2_IMPORT_ERROR = ""
+except Exception as _exc:  # pragma: no cover - optional dependency for OSS upload
     oss2 = None
+    _OSS2_IMPORT_ERROR = f"{type(_exc).__name__}: {_exc}"
+    import traceback as _tb
+    print("[oss2 import failed]", _OSS2_IMPORT_ERROR, flush=True)
+    _tb.print_exc()
 
 
 def _normalize_source_type_for_db(source_type: str) -> str:
@@ -127,7 +132,7 @@ def _build_oss_client() -> tuple[Any, str]:
         )
 
     if oss2 is None:
-        raise RuntimeError("Missing oss2 package. Install with: pip install oss2")
+        raise RuntimeError(f"Missing oss2 package. Import error: {_OSS2_IMPORT_ERROR}")
 
     auth = oss2.Auth(access_key_id, access_key_secret)
     bucket = oss2.Bucket(auth, f"https://{endpoint}", bucket_name)

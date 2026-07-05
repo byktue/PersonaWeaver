@@ -595,6 +595,28 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/debug/oss-import")
+def debug_oss_import() -> dict[str, Any]:
+    """诊断：报告 exe 内 oss2 是否成功导入（不跑提取，单独验证 OSS 依赖打包）。"""
+    from backend import remote_persistence as rp
+    ok = rp.oss2 is not None
+    result: dict[str, Any] = {
+        "oss2_imported": ok,
+        "import_error": getattr(rp, "_OSS2_IMPORT_ERROR", ""),
+    }
+    if ok:
+        result["oss2_version"] = getattr(rp.oss2, "__version__", "unknown")
+    # 也直接现场尝试 import，捕获真实错误
+    try:
+        import oss2 as _live  # noqa: F401
+        result["live_import"] = "ok"
+    except Exception as exc:  # noqa: BLE001
+        import traceback
+        result["live_import"] = f"{type(exc).__name__}: {exc}"
+        result["live_traceback"] = traceback.format_exc()
+    return result
+
+
 def _run_dispatch_pipeline_task(
     *,
     task_id: str,
