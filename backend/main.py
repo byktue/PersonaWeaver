@@ -24,7 +24,7 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from backend.long import EXAMPLES, advanced_split_novel, get_ollama_embedding, local_model
-from backend.remote_persistence import _connect_with_fallback, _resolve_db_url
+from backend.remote_persistence import _connect_with_fallback, _resolve_db_url, mark_book_status
 from backend.workflow_runner import run_l0_to_l2_pipeline
 
 try:
@@ -602,6 +602,7 @@ def _run_dispatch_pipeline_task(
     file_url: str,
     card_character_name: str,
 ) -> None:
+    print(f"[dispatch:{task_id}] 线程启动，book={book.get('book_id')} file_url={file_url[:60]}", flush=True)
     _set_task_state(
         task_id,
         status="running",
@@ -612,16 +613,18 @@ def _run_dispatch_pipeline_task(
 
     # 把书籍状态置为解析中（前端轮询 books 表）
     try:
-        from backend.remote_persistence import mark_book_status
         mark_book_status(book_id=book["book_id"], status="parsing", progress=1, db_url=req.remote_db_url)
+        print(f"[dispatch:{task_id}] 已标记 parsing，开始 pipeline", flush=True)
     except Exception as exc:  # noqa: BLE001
         _write_log(f"[dispatch:{task_id}] mark parsing failed: {exc}")
+        print(f"[dispatch:{task_id}] mark parsing 失败: {exc}", flush=True)
 
     # 进度回写节流：避免每个事件都写库
     _last_written = {"pct": -10}
 
     def on_progress(event: dict[str, Any]) -> None:
         pct = int(event.get("percent", 1))
+        print(f"[dispatch:{task_id}] {pct}% {event.get('stage','')} {event.get('event','')} {str(event.get('message',''))[:50]}", flush=True)
         _set_task_state(
             task_id,
             status="running",
@@ -635,7 +638,6 @@ def _run_dispatch_pipeline_task(
         if pct - _last_written["pct"] >= 20 and pct < 100:
             _last_written["pct"] = pct
             try:
-                from backend.remote_persistence import mark_book_status
                 mark_book_status(book_id=book["book_id"], status="parsing", progress=pct, db_url=req.remote_db_url)
             except Exception:  # noqa: BLE001
                 pass
@@ -688,6 +690,9 @@ def _run_dispatch_pipeline_task(
             message=str(exc),
         )
         _write_log(f"[dispatch:{task_id}] failed: {exc}")
+        import traceback
+        print(f"[dispatch:{task_id}] 任务异常:", flush=True)
+        traceback.print_exc()
 
 
 @app.post("/api/v1/extract")

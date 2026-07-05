@@ -215,7 +215,9 @@ def _call_vivo_chat_json(
         headers=headers,
         params=_vivo_params(request_id),
         json=payload,
-        timeout=timeout_seconds,
+        # (连接超时, 读取超时)：避免 vivo 响应挂起时傻等单一大超时。
+        # 连接 15s；读取上限取 timeout_seconds 与 120s 的较小值。
+        timeout=(15, min(int(timeout_seconds) if timeout_seconds else 120, 120)),
     )
     resp.raise_for_status()
     result_json = resp.json()
@@ -337,7 +339,7 @@ def _call_vivo_chat_text(
         headers=headers,
         params=_vivo_params(request_id),
         json=payload,
-        timeout=timeout_seconds,
+        timeout=(15, min(int(timeout_seconds) if timeout_seconds else 120, 120)),
     )
     resp.raise_for_status()
     result_json = resp.json()
